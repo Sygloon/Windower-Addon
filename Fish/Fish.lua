@@ -26,27 +26,255 @@ ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
 SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 ]]
 
-
+------------------------------
+--	addon information
+------------------------------
 _addon.name = 'Fish'
-_addon.version = '0.3.0'
+_addon.version = '0.4.0'
 _addon.author = 'Hazel'
 _addon.command = 'fish'
 
+------------------------------
 --	ライブラリ
+------------------------------
 packets = require('packets')
 chat = require('chat')
 res = require('resources')
 config = require('config')
 
+
+--	共通関数群
+-- テーブル情報 ダンプ
+function dump( tbl, indent )
+	if type(tbl) ~= 'table' then
+		windower.add_to_chat( 8, 'Cannot dump because not table.' )
+		return
+	end
+	for key, value in pairs( tbl ) do
+		if type( value ) == 'table' then
+			windower.add_to_chat( 8, windower.to_shift_jis( '--- start table('..key..') ---' ) )
+			dump( value, indent.." " )
+			windower.add_to_chat( 8, windower.to_shift_jis( '--- end table('..key..') ---' ) )
+		elseif type( value ) == 'boolean' then
+			windower.add_to_chat( 8, windower.to_shift_jis( indent..'key '..key..' value '..( value == true and "true" or "false" ) ) )
+		else
+			windower.add_to_chat( 8, windower.to_shift_jis( indent..'key '..key..' value '..value ) )
+		end
+	end
+end
+
+--	デバッグログ表示
+function debug_print( msg )
+	if debug_mode then
+		windower.add_to_chat( 8, windower.to_shift_jis( msg ) )
+	end
+end
+
+--	キュー
+Queue	= {}
+function Queue.new()
+  local obj = { buff = {} }
+  return setmetatable(obj, {__index = Queue})
+end
+
+function Queue:enqueue(x)
+  table.insert(self.buff, x)
+end
+
+function Queue:dequeue()
+  return table.remove(self.buff, 1)
+end
+
+function Queue:top()
+  if #self.buff > 0 then
+    return self.buff[1]
+  end
+end
+
+function Queue:isEmpty()
+  return #self.buff == 0
+end
+
+--	竿、餌、etcの装備
+function equip( equip_part, equipment )
+	for _, bag_id in pairs( T{ 0, 8, 10, 11, 12 } ) do
+		local items = windower.ffxi.get_items(bag_id)
+		for inv_index = 1, #items do
+			local	item = items[ inv_index ]
+			if tonumber( item.id ) ~= 0 then
+				if res.items[ item.id ].name then
+					if equipment == res.items[ item.id ].name then
+						windower.ffxi.set_equip( inv_index, res.slots:with( 'en', equip_part ).id, bag_id ) 
+						break
+					end
+				end
+			end
+		end
+	end
+end
+
+--	釣り装備
+function equip_fish_gear()
+	local gear = settings.Gear
+	for slot=0, 15 do
+		if gear[ tostring(slot) ] then
+			equip( res.slots[ slot ].en, gear[ tostring(slot) ] )
+		end
+	end
+end
+--	釣り実行
+function cast_rod()
+	equip_fish_gear()
+	windower.send_command('input /fish')
+end
+
+--	Index取得
+function get_item_index_in_bag( item_name )
+	local items = windower.ffxi.get_items( res.bugs:with( 'en', 'Inventory' ).id )
+	for inv_index = 1, #items do
+		local	item = items[ inv_index ]
+		if res.items[ item.id ].name then
+			return item.id
+		end
+	end
+end
+
+--	竿修理
+function hash(crystal, item, count)
+    local c = ((crystal % 6506) % 4238) % 4096
+    local m = (c + 1) * 6 + 77
+    local b = (c + 1) * 42 + 31
+    local m2 = (8 * c + 26) + (item - 1) * (c + 35)
+    return (m * item + b + m2 * (count - 1)) % 127
+end
+function repair_rod()
+	--	到着間近の船の上なら修理しない
+	if ship_state ~= 2 then
+        local p = packets.new('outgoing', 0x096)
+        local crystal = recipe['crystal']
+        if hqsynth then
+            crystal = hqcrystal[crystal]
+        end
+        local id, index = fetch_ingredient(crystal)
+        if not index then return id end
+		p['Crystal'] = res.items:with('jp', '光のクリスタル' ).id
+		p['Crystal Index'] = get_item_index_in_bag( '光のクリスタル' )
+        p['Ingredient count'] = 1
+        p["Ingredient 1"] = res.items:with('jp', '折れた太公望の釣竿' ).id
+        p["Ingredient Index 1"] = get_item_index_in_bag( '折れた太公望の釣竿' )
+        p['_unknown1'] = hash(p['Crystal'], p['Ingredient 1'], p['Ingredient count'])
+		packets.inject( p )
+	end
+end
+--	ペリカンリング使用
+function use_pelican_ring()
+	local loop_continue = true
+	equip( 'Left Ring', 'ペリカンリング' )
+	coroutine.sleep( 20 )
+	while loop_continue do
+		windower.send_command( windower.to_shift_jis( 'input /item ペンギンリング <me>' ) )
+		local player = windower.ffxi.get_player()
+		for _, buffId in pairs( player.buffs ) do
+			if buffId == res.buffs:with( 'ja', 'エンチャント' ).id then
+				loop_continue = false
+			end
+		end
+		coroutine.sleep( 0.5 )
+	end
+end
+--	釣り人弁当使用
+function eat_fisherman_boxlunch()
+	local loop_continue = true
+	while loop_continue do
+		windower.send_command( windower.to_shift_jis( 'input /item 釣り人弁当 <me>' ) )
+		local player = windower.ffxi.get_player()
+		for _, buffId in pairs( player.buffs ) do
+			if buffId == res.buffs:with( 'ja', 'エンチャント' ).id then
+				loop_continue = false
+			end
+		end
+		coroutine.sleep( 0.5 )
+	end
+end
+--	スニーク使用
+function use_sneak()
+	local loop_continue = true
+	while loop_continue do
+		windower.send_command( windower.to_shift_jis( 'input /ma スニーク <me>' ) )
+		local player = windower.ffxi.get_player()
+		for _, buffId in pairs( player.buffs ) do
+			if buffId == res.buffs:with( 'ja', 'スニーク' ).id then
+				loop_continue = false
+			end
+		end
+		coroutine.sleep( 0.5 )
+	end
+end
+
+--	釣り場所判定
+function check_ship_state()
+	local	zoneId	= windower.ffxi.get_info().zone
+	if T{220,221,227,228}:contains( zoneId ) then 
+		ship_state = 1		--	船の上
+	else
+		ship_state = 0		--	地上
+	end
+end
+
+--	キュー実行スレッド
+function queue_execute()
+	while true do	--	無限ループ
+		if not action_queue:isEmpty() then
+			print( "queue_execute() not Empty" )
+			while action_queue:isEmpty() do	--	無限ループ
+				local	task	= action_queue:dequeue()
+				task()
+			end
+		else
+			print( "queue_execute() is Empty" )
+			coroutine.sleep( 0.5 )
+		end
+	end
+end
+
+------------------------------
 --	グローバル変数
-buff_enchant	= true
-buff_food		= true
+------------------------------
+NoCatchCount	= 1						--	「何も釣れなかった」連続回数
+debug_mode		= false					--	デバッグログ出力フラグ
+auto_sneak_mode	= false					--	自動スニークモード
+auto_food_mode	= false					--	自動「釣り人弁当」モード
+auto_ring_mode	= false					--	自動「ペリカンリング」モード
+Fish_ID			= 0						--	釣り上げた魚のID
+catch_count		= 0						--	その日に釣り上げた魚の数
+today			= os.date("%Y-%m-%d")	--	日付
+action_queue	= Queue.new()			--	各種行動のキュー(例：弁当食べる＞スニーク＞釣り)
+ship_state		= 0						--	船の上状態 [0]：地上 [1]：船の上 [2]：船の上(到着間近)
 
-NoCatchCount	= 1
-debug_mode		= false
-Fish_ID			= 0;
+--	外道
+RustyItems = T{
+	"アローウッド原木",
+	"カッパーリング",
+	"コバルトジェリー",
+	"パムタム海苔",
+	"錆びたサブリガ",
+	"錆びたバケツ",
+	"錆びたレギンス",
+	"錆びたキャップ",
+	"錆びた大剣",
+	"錆びた鎚鉾",
+	"錆びた短刀",
+	"錆びた槍",
+	"錆びた鎌",
+	"錆びた盾",
+	"錆びた短剣",
+}
 
+
+
+------------------------------
 --	デフォルト設定値
+------------------------------
 defaults = {}
 defaults.Fish = {		--	エリア毎の獲物の情報j / アドオンが更新していく
 	["246"] = {			--	ZoneID / キーは文字列でないとsave()に失敗する
@@ -76,60 +304,93 @@ defaults.Release = {	--	エリア毎のリリースする獲物の情報
 		["57671683"] = "カッパーリング",		--	0x03700003
 	}
 }
-defaults.CastWait = 12			--	釣りの間隔
-defaults.ActionTimeMax = 10		--	格闘時間の最大値
-defaults.NoCatchCount = 10		--	「何も釣れなかった」が連続したら釣りをやめる
---[[
-defaults.Fatigue = {			--	疲れ管理(未実装)
-	Count = 0,
-	Date = 0,
+defaults.CastWait = 12			--	釣り上げ→釣りの間隔
+defaults.ActionTime =
+{
+	Max = 5,		--	格闘時間の最大値
+	Min = 1			--	格闘時間の最大値
 }
-]]
+defaults.NoCatchCount = 10		--	「何も釣れなかった」が連続したら釣りをやめる
+defaults.Gear = {
+	["2"] = "太公望の釣竿",
+	["4"] = "トラトラマグラス",
+	["6"] = "カチナグローブ",
+	["5"] = "漁師スモック",
+	["7"] = "フィッシャホーズ",
+	["8"] = "ウエーダー",
+	["9"] = "フィッシャトルク",
+	["13"] = "ノディリング",
+	["14"] = "ペリカンリング",
+--	["14"] = "パフィンリング",
+	
+	AutoRepair = false
+}
+
+-- textsの設定項目(値は何も指定していなかった場合のデフォルト値)
+local texts_settings = {
+	-- テキストの表示位置
+	pos = {
+		x = 0,
+		y = 0,
+	},
+	-- 背景色
+	bg = {
+		alpha = 255,
+		red = 0,
+		green = 0,
+		blue = 0,
+		visible = true, -- 背景表示の有無
+	},
+-- 文字列の表示形式
+	flags = {
+		right = false,
+		bottom = false,
+		bold = false,
+		draggable = true, -- マウスでの移動
+		italic = false,
+	},
+	-- 文字と背景との余白
+	padding = 0,
+
+	-- 文字列
+	text = {
+		size = 12,
+		font = 'メイリオ', -- 日本語を表示させる場合は、日本語が表示可能なフォントを設定する必要あり
+		fonts = {},
+		alpha = 255, -- 透過
+		red = 255,
+		green = 255,
+		blue = 255,
+
+		-- 文字列の縁取り
+		stroke = {
+			width = 0,
+			alpha = 255,
+			red = 0,
+			green = 0,
+			blue = 0,
+		}
+	}
+}
+defaults.texts = texts_settings
+
 settings = config.load(defaults)
 
---	外道
-RustyItems = T{
-	"アローウッド原木",
-	"カッパーリング",
-	"コバルトジェリー",
-	"パムタム海苔",
-	"錆びたサブリガ",
-	"錆びたバケツ",
-	"錆びたレギンス",
-	"錆びたキャップ",
-	"錆びた大剣",
-	"錆びた鎚鉾",
-}
+--	テキストボックスの作成
+local texts = require('texts')
+text_box = texts.new( "今日の釣果：${count|0}匹 / ${info|情報無し}", settings.texts, settings )
+text_box:show()
+text_box.count	= 0				--	本日の釣果
 
--- テーブル情報 ダンプ
-function dump( tbl, indent )
-	if type(tbl) ~= 'table' then
-		windower.add_to_chat( 8, 'Cannot dump because not table.' )
-		return
-	end
-	for key, value in pairs( tbl ) do
-		if type( value ) == 'table' then
-			windower.add_to_chat( 8, windower.to_shift_jis( '--- start table('..key..') ---' ) )
-			dump( value, indent.." " )
-			windower.add_to_chat( 8, windower.to_shift_jis( '--- end table('..key..') ---' ) )
-		elseif type( value ) == 'boolean' then
-			windower.add_to_chat( 8, windower.to_shift_jis( indent..'key '..key..' value '..( value == true and "true" or "false" ) ) )
-		else
-			windower.add_to_chat( 8, windower.to_shift_jis( indent..'key '..key..' value '..value ) )
-		end
-	end
-end
 
-function debug_print( msg )
-	if debug_mode then
-		windower.add_to_chat( 8, windower.to_shift_jis( msg ) )
-	end
-end
 
---	何も釣れなかったで釣り停止
+------------------------------
+--	Windwoer event
+------------------------------
 windower.register_event('incoming text',function( original, modified, original_mode, modified_mode, blocked )
 	local msg = windower.from_shift_jis( original )
 	if msg:find( "何も釣れなかった" ) then
+		--	何も釣れなかったで釣り停止
 		debug_print( 'incoming text / NoCatchCount/MAX='..NoCatchCount.."/"..settings.NoCatchCount )
 		if NoCatchCount < tonumber( settings.NoCatchCount ) then
 			NoCatchCount	= NoCatchCount + 1;
@@ -146,6 +407,15 @@ windower.register_event('incoming text',function( original, modified, original_m
 			settings:save('all')
 		end
 		Fish_ID	= 0			--	釣果をモンスターで確定
+							--	'add item'で倒したモンスターのドロップが釣果として登録されるのを防ぐ
+	elseif msg:find("まもなくマウラへ到着します" ) or msg:find("まもなくセルビナへ到着します" ) then
+		--	機船航路 到着直前なら竿の修理などをやらない(未実装)
+		ship_state = 2	--	船の上＆まもなく到着
+		--	テストコード
+		local	zoneId	= windower.ffxi.get_info().zone		--	キーとしては文字列
+		if T{220,221,227,228}:contains( zoneId ) then 
+			text_box.info	= msg
+		end
 	end
 end)
 
@@ -168,8 +438,8 @@ windower.register_event('incoming chunk',function(id, data)
 	if id == 0x115 then
 		local	biteId	= tostring( packet['Fish Bite ID'])		--	掛かったもののID
 		local	zoneId	= tostring( windower.ffxi.get_info().zone )		--	キーとしては文字列
-		windower.add_to_chat( 8, 'biteId='..biteId )
-		windower.add_to_chat( 8, 'zoneId='..zoneId )
+		debug_print( 'biteId='..biteId )
+		debug_print( 'zoneId='..zoneId )
 		debug_print( 'packet[Catch Key] '..packet['Catch Key'] )
 
 		local pullin_packet
@@ -186,13 +456,13 @@ windower.register_event('incoming chunk',function(id, data)
 		if not settings.Fish[ zoneId ][ biteId ] then
 			settings.Fish[ zoneId ][ biteId ] = "Monster"		--	新規IDはモンスターとして仮決め
 			settings:save('all')
-			windower.add_to_chat( 8, windower.to_shift_jis( "不明な魚( biteId = "..biteId..")を登録" ) )
+			windower.add_to_chat( 8, windower.to_shift_jis( string.format( "不明な魚( biteId=%s / zoneId=%s )を登録", biteId, zoneId ) ) )
 		end
 	
 		if( settings.Release[ zoneId ] and settings.Release[ zoneId ][ biteId ] ) then
 			--	リリース対象
-			debug_print( windower.to_shift_jis( "settings.Release[ "..zoneId.." ][ "..biteId.." ]="..settings.Release[ zoneId ][ biteId ] ) )
-			windower.add_to_chat( 8, windower.to_shift_jis( settings.Release[ zoneId ][ biteId ].."をリリースします" ) )
+			debug_print( "settings.Release[ "..zoneId.." ][ "..biteId.." ]="..settings.Release[ zoneId ][ biteId ] )
+			debug_print( settings.Release[ zoneId ][ biteId ].."をリリースします" )
 			--	不要な釣果を捨てる
 			-- 釣り上げパケット生成＆送出
 			pullin_packet = packets.new('outgoing', 0x110, {
@@ -206,7 +476,7 @@ windower.register_event('incoming chunk',function(id, data)
 		else
 			--	釣り上げ対象
 			-- ランダム待ち(HPの減りを監視されてたら無駄な気も)
-	        random_wait = math.random( 3, settings.ActionTimeMax )
+	        random_wait = math.random( settings.ActionTime.Min, settings.ActionTime.Max )
 			for wait_count = 0, random_wait do
 				coroutine.sleep( 1 )
 				debug_print( '- '..(random_wait-wait_count)..'-----------------')
@@ -262,21 +532,12 @@ windower.register_event('outgoing chunk', function(id, data)
 
 		if T{2, 3}:contains( packet['Action'] ) then
 			if ( fish_continue and ( NoCatchCount < tonumber( settings.NoCatchCount ) ) ) then
---			if fish_continue then
---				debug_print( 'fish_continue '..( fish_continue and 'true' or 'false' ) )
---				debug_print('next /fish start')
-				--	バフ掛け直し(GSと組み合わせると、装備が外れる場合がある)
-				if buff_enchant then
---					windower.send_command( windower.to_shift_jis( 'wait 5;input /item ペリカンリング <me>; wait 12; input /fish') )
-				end
-				if buff_food then
---					windower.send_command( windower.to_shift_jis( 'wait 5;input /item 釣り人弁当 <me>; wait 12; input /fish') )
-				end
-
+				debug_print( 'fish_continue '..( fish_continue and 'true' or 'false' ) )
+				debug_print('next /fish start')
 				--	次の釣り
-				windower.send_command('wait '..settings.CastWait..';input /fish')
+				coroutine.sleep( settings.CastWait )
+				cast_rod()
 			else
-				debug_print('next /fish stop')
 				windower.add_to_chat( 5, windower.to_shift_jis( "規定回数獲物が掛からなかったので動作を停止します" ) )
 			end
 		end
@@ -302,11 +563,20 @@ windower.register_event('addon command', function(...)
         elseif comm == 'start' then
 			fish_continue = true
 			NoCatchCount = 1
-			windower.send_command('input /fish')
+			cast_rod()
 			windower.add_to_chat( 5 , windower.to_shift_jis( '-- 釣りを開始します --' ) )
         elseif comm == 'stop' then
 			fish_continue = false
 			windower.add_to_chat( 5 , windower.to_shift_jis( '-- 釣りを止めます --' ) )
+        elseif comm == 'autosneak' then
+			auto_sneak_mode = not auto_sneak_mode
+			windower.add_to_chat( 5 , windower.to_shift_jis( '-- 自動スニ='..tostring(auto_sneak_mode)..' --' ) )
+        elseif comm == 'autoring' then
+			auto_ring_mode = not auto_ring_mode
+			windower.add_to_chat( 5 , windower.to_shift_jis( '-- 自動ペンギンリング='..tostring(auto_ring_mode)..' --' ) )
+        elseif comm == 'autofood' then
+			auto_food_mode = not auto_food_mode
+			windower.add_to_chat( 5 , windower.to_shift_jis( '-- 自動釣り人弁当='..tostring(auto_food_mode)..' --' ) )
         elseif comm == 'autostop' then
 			local count				= args[2] and args[2] or defaults.NoCatchCount
 			settings.NoCatchCount	= count
@@ -335,17 +605,22 @@ windower.register_event('addon command', function(...)
     end
 end)
 
---	日付変更(疲れクリア)
-windower.register_event('day change', function(new_day, old_day)
-	windower.add_to_chat( 8 , windower.to_shift_jis( '日付変更：'..old_day..' -> '..new_day ) )
+windower.register_event('time change', function( new, old )
+	--	日付が変わったら釣果(200制限)をリセット
+	if today ~= os.date("%Y-%m-%d")	then
+		text_box.count	= 0
+	end
 end)
 
 windower.register_event('add item', function( bag, index, id, count )
 	local	zoneId	= tostring( windower.ffxi.get_info().zone )
 	local	fishId	= tostring( Fish_ID )
+	--	かばんに物が増えた
 	if res.bags:with( 'en', 'Inventory' ).id == bag then
+		--	魚を釣り上げた後
 		if Fish_ID ~= 0 then
 			windower.add_to_chat( 8 , windower.to_shift_jis( 'add item / item='..res.items[id].name..' Fish_ID='..Fish_ID ) )
+			--	外道だったらリリース対象に追加
 			if RustyItems:contains( res.items[id].name ) then
 				--	リリース対象に追加
 				if not settings.Release[ zoneId ] then
@@ -356,21 +631,31 @@ windower.register_event('add item', function( bag, index, id, count )
 					settings:save('all')
 				end
 			end
-			if settings.Fish[ zoneId ] then		--	エミネンの交換などの際のエラー対策
+			--	連れたものを一覧に追加
+			if settings.Fish[ zoneId ] then
 				if settings.Fish[ zoneId ][ fishId ] ~= res.items[id].name then
+					--	釣れたものの名前を修正(仮でMonsterにしているので)
 					settings.Fish[ zoneId ][ fishId ] = res.items[id].name
 					settings:save('all')
 				end
 			end
-			Fish_ID	= 0
+			Fish_ID	= 0						--	釣った魚のIDをクリア
+			catch_count	= catch_count + 1	--	釣り上げた魚の数をインクリメント
+			text_box.count	= catch_count	--	テキストボックスの表示を更新
 		end
 	end
 end)
 
 windower.register_event('load', function()
+--	coroutine.schedule( queue_execute, 0 )
+	check_ship_state()
 end)
 windower.register_event('unload', function()
 	settings:save('all')
+end)
+
+windower.register_event('login', function()
+	check_ship_state()
 end)
 
 windower.register_event('gain buff', function(buff_id)
@@ -383,14 +668,29 @@ windower.register_event('gain buff', function(buff_id)
 		buff_food	= true
 	end
 end)
+
 windower.register_event('lose buff', function(buff_id)
 	local buff_name = res.buffs:with( 'id', buff_id ).name
-	windower.add_to_chat( 8 , windower.to_shift_jis( 'lose buff：'..buff_name ) )
-	if buff_name == "エンチャント" then
-		buff_enchant	= false
+	windower.add_to_chat( 8 , windower.to_shift_jis( string.format( 'lose buff：%s(%d)', buff_name, buff_id ) ) )
+	if fish_continue and auto_ring_mode and ( buff_id == res.buffs:with( 'ja', 'エンチャント' ).id ) then
+		coroutine.schedule( use_penguin_ring, 0.5 )
 	end
-	if buff_name == "食事" then
-		buff_food	= false
+	if fish_continue and auto_food_mode and ( buff_id == res.buffs:with( 'ja', 'スニーク' ).id ) then
+		coroutine.schedule( eat_fisherman_boxlunch, 0.5 )
+	end
+	if fish_continue and auto_sneak_mode and ( buff_id == res.buffs:with( 'ja', 'スニーク' ).id ) then
+		coroutine.schedule( use_sneak, 0.5 )
 	end
 end)
 
+windower.register_event('zone change',function ( new_zoneId, old_zoneId )
+	windower.add_to_chat( 8 , windower.to_shift_jis( string.format( 'zone change：%s(%d)', res.zones[new_zoneId].name, new_zoneId ) ) )
+	
+	check_ship_state()
+	
+	if T{227, 228 }:contains( new_zoneId ) then 
+		text_box.info	= res.zones[new_zoneId].name.."(海賊！)"
+	else
+		text_box.info	= res.zones[new_zoneId].name
+	end
+end)
