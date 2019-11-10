@@ -30,7 +30,7 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 --	addon information
 ------------------------------
 _addon.name = 'Fish'
-_addon.version = '0.4.0'
+_addon.version = '0.5.0'
 _addon.author = 'Hazel'
 _addon.command = 'fish'
 
@@ -96,6 +96,8 @@ function Queue:isEmpty()
 end
 
 --	竿、餌、etcの装備
+--	equip_part	'Main', 'Head', etc
+--	equipment	'太公望の釣竿', 'フィッシャトルク', etc
 function equip( equip_part, equipment )
 	for _, bag_id in pairs( T{ 0, 8, 10, 11, 12 } ) do
 		local items = windower.ffxi.get_items(bag_id)
@@ -124,6 +126,7 @@ function equip_fish_gear()
 end
 --	釣り実行
 function cast_rod()
+	eat_fisherman_boxlunch()
 	equip_fish_gear()
 	windower.send_command('input /fish')
 end
@@ -168,6 +171,10 @@ function repair_rod()
 end
 --	ペリカンリング使用
 function use_pelican_ring()
+--[[
+	if not settings.AutoRingMode or nor fish_continue then
+		return
+	end
 	local loop_continue = true
 	equip( 'Left Ring', 'ペリカンリング' )
 	coroutine.sleep( 20 )
@@ -181,19 +188,28 @@ function use_pelican_ring()
 		end
 		coroutine.sleep( 0.5 )
 	end
+]]
+end
+
+function check_food_eat()
+	local is_food_eaten	= false
+	local player = windower.ffxi.get_player()
+	for _, buffId in pairs( player.buffs ) do
+		if buffId == res.buffs:with( 'ja', '食事' ).id then
+			is_food_eaten = true
+		end
+	end
+	return is_food_eaten
 end
 --	釣り人弁当使用
 function eat_fisherman_boxlunch()
-	local loop_continue = true
-	while loop_continue do
-		windower.send_command( windower.to_shift_jis( 'input /item 釣り人弁当 <me>' ) )
-		local player = windower.ffxi.get_player()
-		for _, buffId in pairs( player.buffs ) do
-			if buffId == res.buffs:with( 'ja', 'エンチャント' ).id then
-				loop_continue = false
-			end
+	if(  settings.AutoFoodMode and fish_continue ) then
+		local loop_continue = not check_food_eat()
+		while loop_continue do
+			windower.send_command( windower.to_shift_jis( 'input /item 釣り人弁当 <me>' ) )
+			coroutine.sleep( 1.0 )
+			loop_continue = not check_food_eat()
 		end
-		coroutine.sleep( 0.5 )
 	end
 end
 --	スニーク使用
@@ -250,6 +266,7 @@ catch_count		= 0						--	その日に釣り上げた魚の数
 today			= os.date("%Y-%m-%d")	--	日付
 action_queue	= Queue.new()			--	各種行動のキュー(例：弁当食べる＞スニーク＞釣り)
 ship_state		= 0						--	船の上状態 [0]：地上 [1]：船の上 [2]：船の上(到着間近)
+fish_continue	= false					--	釣りを繰り返している間は true
 
 --	外道
 RustyItems = T{
@@ -304,7 +321,9 @@ defaults.Release = {	--	エリア毎のリリースする獲物の情報
 		["57671683"] = "カッパーリング",		--	0x03700003
 	}
 }
-defaults.CastWait = 12			--	釣り上げ→釣りの間隔
+defaults.AutoFoodMode	= false		--	釣り人弁当を自動で食べる
+defaults.AutoRetryCast	= false		--	「ここで釣りはできません」の時にリトライするかどうか
+defaults.CastWait		= 12		--	釣り上げ→釣りの間隔
 defaults.ActionTime =
 {
 	Max = 5,		--	格闘時間の最大値
@@ -408,7 +427,9 @@ windower.register_event('incoming text',function( original, modified, original_m
 		end
 		Fish_ID	= 0			--	釣果をモンスターで確定
 							--	'add item'で倒したモンスターのドロップが釣果として登録されるのを防ぐ
-	elseif msg:find("まもなくマウラへ到着します" ) or msg:find("まもなくセルビナへ到着します" ) then
+	elseif settings.AutoRetryCast and msg:find("ここで釣りはできません" )  then
+		cast_rod()
+	elseif windower.wc_match( msg, "まもなく*へ到着します" ) then
 		--	機船航路 到着直前なら竿の修理などをやらない(未実装)
 		ship_state = 2	--	船の上＆まもなく到着
 		--	テストコード
@@ -568,6 +589,9 @@ windower.register_event('addon command', function(...)
         elseif comm == 'stop' then
 			fish_continue = false
 			windower.add_to_chat( 5 , windower.to_shift_jis( '-- 釣りを止めます --' ) )
+        elseif comm == 'autoretry' then
+			settings.AutoRetryCast = not settings.AutoRetryCast
+			windower.add_to_chat( 5 , windower.to_shift_jis( '-- 釣り失敗を再実行='..tostring(settings.AutoRetryCast)..' --' ) )
         elseif comm == 'autosneak' then
 			auto_sneak_mode = not auto_sneak_mode
 			windower.add_to_chat( 5 , windower.to_shift_jis( '-- 自動スニ='..tostring(auto_sneak_mode)..' --' ) )
@@ -575,10 +599,10 @@ windower.register_event('addon command', function(...)
 			auto_ring_mode = not auto_ring_mode
 			windower.add_to_chat( 5 , windower.to_shift_jis( '-- 自動ペンギンリング='..tostring(auto_ring_mode)..' --' ) )
         elseif comm == 'autofood' then
-			auto_food_mode = not auto_food_mode
-			windower.add_to_chat( 5 , windower.to_shift_jis( '-- 自動釣り人弁当='..tostring(auto_food_mode)..' --' ) )
+			settings.AutoFoodMode = not settings.AutoFoodMode
+			windower.add_to_chat( 5 , windower.to_shift_jis( '-- 自動釣り人弁当食べるモード='..tostring(settings.AutoFoodMode)..' --' ) )
         elseif comm == 'autostop' then
-			local count				= args[2] and args[2] or defaults.NoCatchCount
+			local count				= args[2] and args[2] or settings.NoCatchCount
 			settings.NoCatchCount	= count
 			windower.add_to_chat( 5 , windower.to_shift_jis( '-- '..settings.NoCatchCount..' 回連続で釣れなかったら釣りを止めます --' ) )
         elseif comm == 'r' then
@@ -689,8 +713,8 @@ windower.register_event('zone change',function ( new_zoneId, old_zoneId )
 	check_ship_state()
 	
 	if T{227, 228 }:contains( new_zoneId ) then 
-		text_box.info	= res.zones[new_zoneId].name.."(海賊！)"
+		text_box.info	= res.zones[new_zoneId].name..string.format( "(海賊！)(%d)", new_zoneId )
 	else
-		text_box.info	= res.zones[new_zoneId].name
+	text_box.info	= res.zones[new_zoneId].name..string.format( "(%d)", new_zoneId )
 	end
 end)
