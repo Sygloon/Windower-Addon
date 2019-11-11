@@ -30,7 +30,7 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 --	addon information
 ------------------------------
 _addon.name = 'Fish'
-_addon.version = '0.5.1'
+_addon.version = '0.5.2'
 _addon.author = 'Hazel'
 _addon.command = 'fish'
 
@@ -256,6 +256,28 @@ function check_ship_state()
 	end
 end
 
+--	テキストボックス更新
+function update_text_box()
+
+	--	釣った引数
+	text_box.count	= catch_count	--	本日の釣果
+
+	--	現在のエリア
+	local zoneId	= windower.ffxi.get_info().zone
+	if T{227, 228 }:contains( zoneId ) then 
+		text_box.zone	= res.zones[zoneId].name..string.format( "(海賊！)(%d)", zoneId )
+	else
+		text_box.zone	= res.zones[zoneId].name..string.format( "(%d)", zoneId )
+	end
+	
+	--	入港間近
+	text_box.PortEntry	= ""
+	
+	--	釣りスキル
+	local skill = windower.ffxi.get_player().skills
+	text_box.skill	= tostring( skill.fishing )
+end
+
 --	キュー実行スレッド
 function queue_execute()
 	while true do	--	無限ループ
@@ -420,11 +442,9 @@ settings = config.load(defaults)
 
 --	テキストボックスの作成
 local texts = require('texts')
-text_box = texts.new( "今日の釣果：${count|0}匹 / ${info|情報無し} / 釣りスキル：${skill}", settings.texts, settings )
+text_box = texts.new( "今日の釣果：${count|0}匹 / ${zone|？？？} ${PortEntry} / 釣りスキル：${skill|？？？}", settings.texts, settings )
 text_box:show()
-text_box.count	= 0				--	本日の釣果
-text_box.skill	= 0				--	釣りスキル
-
+update_text_box()
 
 
 ------------------------------
@@ -454,8 +474,6 @@ windower.register_event('incoming text',function( original, modified, original_m
 							--	'add item'で倒したモンスターのドロップが釣果として登録されるのを防ぐ
 	elseif msg:find("ここで釣りはできません" ) then
 		if settings.AutoRetryCast.DoRetry then 
-			print( "CastRetry="..CastRetry )
-			print( "settings.AutoRetryCast.RetryMax="..settings.AutoRetryCast.RetryMax )
 			if CastRetry < settings.AutoRetryCast.RetryMax then
 				cast_rod()
 				CastRetry	= CastRetry + 1
@@ -466,11 +484,8 @@ windower.register_event('incoming text',function( original, modified, original_m
 	elseif windower.wc_match( msg, "まもなく*へ到着します" ) then
 		--	機船航路 到着直前なら竿の修理などをやらない(未実装)
 		ship_state = 2	--	船の上＆まもなく到着
-		--	テストコード
-		local	zoneId	= windower.ffxi.get_info().zone		--	キーとしては文字列
-		if T{220,221,227,228}:contains( zoneId ) then 
-			text_box.info	= msg
-		end
+	
+		text_box.PortEntry = "入港間近"
 	end
 end)
 
@@ -668,7 +683,8 @@ end)
 windower.register_event('time change', function( new, old )
 	--	日付が変わったら釣果(200制限)をリセット
 	if today ~= os.date("%Y-%m-%d")	then
-		text_box.count	= 0
+		catch_count	= 0
+		update_text_box()
 	end
 end)
 
@@ -701,7 +717,7 @@ windower.register_event('add item', function( bag, index, id, count )
 			end
 			Fish_ID	= 0						--	釣った魚のIDをクリア
 			catch_count	= catch_count + 1	--	釣り上げた魚の数をインクリメント
-			text_box.count	= catch_count	--	テキストボックスの表示を更新
+			update_text_box()				--	テキストボックスの表示を更新
 		end
 		--	かばんが一杯になったら釣り中止
 		local bag = windower.ffxi.get_items( 0 )	--	get inventry info
@@ -749,28 +765,9 @@ windower.register_event('lose buff', function(buff_id)
 end)
 
 windower.register_event('zone change',function ( new_zoneId, old_zoneId )
-	windower.add_to_chat( 8 , windower.to_shift_jis( string.format( 'zone change：%s(%d)', res.zones[new_zoneId].name, new_zoneId ) ) )
-	
 	check_ship_state()
-	
-	if T{227, 228 }:contains( new_zoneId ) then 
-		text_box.info	= res.zones[new_zoneId].name..string.format( "(海賊！)(%d)", new_zoneId )
-	else
-	text_box.info	= res.zones[new_zoneId].name..string.format( "(%d)", new_zoneId )
-	end
+
+	text_box.PortEntry = ""
+	update_text_box()
 end)
 
-windower.register_event('action message',function (actor_id, target_id, actor_index, target_index, message_id, param_1, param_2, param_3)
-	windower.add_to_chat( 8 , windower.to_shift_jis( string.format( 'action message：actor_id[%s], target_id[%s], actor_index[%s], target_index[%s], message_id[%s], param_1[%s], param_2[%s], param_3[%s]',
-		tostring(actor_id), tostring(target_id), tostring(actor_index), tostring(target_index), tostring(message_id), tostring(param_1), tostring(param_2), tostring(param_3) ) ) )
-	windower.add_to_chat( 8 , windower.to_shift_jis( string.format( 'Actor Name[%s]', windower.ffxi.get_mob_by_id(actor_id).name ) ) )
-	windower.add_to_chat( 8 , windower.to_shift_jis( string.format( 'Target Name[%s]', windower.ffxi.get_mob_by_id(target_id).name ) ) )
-	windower.add_to_chat( 8 , windower.to_shift_jis( string.format( 'Actor Name[%s]', windower.ffxi.get_mob_by_index(actor_index).name ) ) )
-	windower.add_to_chat( 8 , windower.to_shift_jis( string.format( 'Target Name[%s]', windower.ffxi.get_mob_by_index(target_index).name ) ) )
-	--	スキルアップは多分 No.38
-	if message_id and ( message_id == 38 ) then
-		local info = windower.ffxi.get_player()
-		text_box.skill	= info.skills.Fishing
-	end
-	
-end)
