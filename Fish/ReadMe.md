@@ -1,5 +1,5 @@
 **Author:** Hazel
-**Version:** 0.40 
+**Version:** 0.5 
 **Description:**  
 釣りを繰り返す
 
@@ -13,6 +13,14 @@
  4. fish release add/remove fishName zoneId-- リリースする対象を追加/削除(未実装/手編集で良くない？)
  5. fish reset		-- 疲れカウントクリア(未実装)
  6. fish r			-- 設定ファイルの再読み込み(Release対象を編集後などに)
+
+Ver 0.5
+	・ソース管理を移動
+		https://github.com/Sygloon/Windower-Addon.git
+	・たまに「ここで釣りはできません」が出たらリトライする
+	・テキストボックスに今のスキルを表示
+	・釣り人弁当を自動で食べるモード追加
+	・かばんが一杯になったら釣り中止
 
 Ver 0.4
 	・釣り時に、登録しておいた装備に着替える
