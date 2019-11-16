@@ -126,7 +126,11 @@ function equip_fish_gear()
 end
 --	釣り実行
 function cast_rod()
+	if check_skill_cap() then		--	スキルキャップしているので実行しない
+		return
+	end
 	eat_fisherman_boxlunch()
+	use_ring1()
 	equip_fish_gear()
 	windower.send_command('input /fish')
 end
@@ -169,24 +173,43 @@ function repair_rod()
 		packets.inject( p )
 	end
 end
---	ペリカンリング使用
-function use_pelican_ring()
---[[
-	if not settings.AutoRingMode or nor fish_continue then
-		return
+
+--	スキル値のチェック
+function check_skill_cap()
+	local skill = windower.ffxi.get_player().skills
+	text_box.skill	= tostring( skill.fishing )
+	if( skill.fishing < settings.StopBySkillCap) then
+		return false
+	else
+		windower.add_to_chat( 8, windower.to_shift_jis( string.format( "スキルキャップ(%d/%d)", skill.fishing, settings.StopBySkillCap ) ) )
+		return true
 	end
-	local loop_continue = true
-	equip( 'Left Ring', 'ペリカンリング' )
-	coroutine.sleep( 20 )
-	while loop_continue do
-		windower.send_command( windower.to_shift_jis( 'input /item ペンギンリング <me>' ) )
-		local player = windower.ffxi.get_player()
-		for _, buffId in pairs( player.buffs ) do
-			if buffId == res.buffs:with( 'ja', 'エンチャント' ).id then
-				loop_continue = false
-			end
+end
+--	すでにペリカンリングを使っているかチェック
+function check_ring_using()
+	local is_rinf_used	= false
+	local player = windower.ffxi.get_player()
+	for _, buffId in pairs( player.buffs ) do
+		if buffId == res.buffs:with( 'ja', 'エンチャント' ).id then
+			is_rinf_used = true
 		end
-		coroutine.sleep( 0.5 )
+	end
+	return is_rinf_used
+end
+
+--	リング使用
+function use_ring1()
+	if( settings.AutoRingMode and settings.AutoRingMode.Use and fish_continue and not check_ring_using() ) then
+		windower.send_command( windower.to_shift_jis( 'input /item '..settings.AutoRingMode.Ring..' <me>' ) )
+		coroutine.sleep( 4.0 )
+	end
+end
+--	リング使用 / 2種類使ったときにバフアイコンの区別がつかない問題をどう解決するか…
+function use_ring2()
+--[[
+	if( settings.AutoRingMode and fish_continue ) then
+		windower.send_command( windower.to_shift_jis( 'input /item '..settings.AutoRingMode.Ring..' <me>' ) )
+		coroutine.sleep( 4.0 )
 	end
 ]]
 end
@@ -276,6 +299,10 @@ function update_text_box()
 	--	釣りスキル
 	local skill = windower.ffxi.get_player().skills
 	text_box.skill	= tostring( skill.fishing )
+	
+	text_box.Food	= tostring( settings.AutoFoodMode )
+	text_box.Ring	= tostring( settings.AutoRingMode.Use )
+	
 end
 
 --	キュー実行スレッド
@@ -314,8 +341,17 @@ CastRetry		= 0						--	「ここでは釣りはできません」のリトライ
 RustyItems = T{
 	"アローウッド原木",
 	"カッパーリング",
+	"シルバーリング",
 	"コバルトジェリー",
 	"パムタム海苔",
+	"ミスリルソード",
+	"ミスリルダガー",
+	"ノーグ貝",
+	"濡れた巻物",
+	"バグベアマスク",
+	"モブリンマスク",
+	"珊瑚のかけら",
+	"魚鱗の盾",
 	"錆びたサブリガ",
 	"錆びたバケツ",
 	"錆びたレギンス",
@@ -364,8 +400,12 @@ defaults.Release = {	--	エリア毎のリリースする獲物の情報
 	}
 }
 defaults.AutoFoodMode	= false		--	釣り人弁当を自動で食べる
+defaults.AutoRingMode	= {			--	ペリカンリングの自動使用
+	Use			= true,
+	Ring		= "ペリカンリング",
+}
 defaults.AutoRetryCast	= {			--	「ここで釣りはできません」の時にリトライするかどうか
-	DoRetry		= false,			--	リトライする
+	DoRetry		= true,				--	リトライする
 	RetryMax	= 2,				--	リトライする回数
 }
 defaults.CastWait		= 12		--	釣り上げ→釣りの間隔
@@ -374,7 +414,9 @@ defaults.ActionTime =
 	Max = 5,		--	格闘時間の最大値
 	Min = 1			--	格闘時間の最大値
 }
-defaults.NoCatchCount = 10		--	「何も釣れなかった」が連続したら釣りをやめる
+defaults.NoCatchCount	= 10		--	「何も釣れなかった」が連続したら釣りをやめる
+defaults.StopBySkillCap	= 110		--	指定したスキル値に到達したら釣りをやめる(昇級認定試験)
+
 defaults.Gear = {
 	["2"] = "太公望の釣竿",
 	["4"] = "トラトラマグラス",
@@ -418,7 +460,7 @@ local texts_settings = {
 
 	-- 文字列
 	text = {
-		size = 12,
+		size = 10,
 		font = 'メイリオ', -- 日本語を表示させる場合は、日本語が表示可能なフォントを設定する必要あり
 		fonts = {},
 		alpha = 255, -- 透過
@@ -442,7 +484,7 @@ settings = config.load(defaults)
 
 --	テキストボックスの作成
 local texts = require('texts')
-text_box = texts.new( "今日の釣果：${count|0}匹 / ${zone|？？？} ${PortEntry} / 釣りスキル：${skill|？？？}", settings.texts, settings )
+text_box = texts.new( '今日の釣果：${count|0}匹\n${zone|？？？} ${PortEntry}\n釣りスキル：${skill|？？？}\nFood：${Food}\nRing：${Ring}', settings.texts, settings )
 text_box:show()
 update_text_box()
 
@@ -487,6 +529,7 @@ windower.register_event('incoming text',function( original, modified, original_m
 	
 		text_box.PortEntry = "入港間近"
 	end
+	update_text_box()
 end)
 
 windower.register_event('incoming chunk',function(id, data)
@@ -647,8 +690,8 @@ windower.register_event('addon command', function(...)
 			auto_sneak_mode = not auto_sneak_mode
 			windower.add_to_chat( 5 , windower.to_shift_jis( '-- 自動スニ='..tostring(auto_sneak_mode)..' --' ) )
         elseif comm == 'autoring' then
-			auto_ring_mode = not auto_ring_mode
-			windower.add_to_chat( 5 , windower.to_shift_jis( '-- 自動ペンギンリング='..tostring(auto_ring_mode)..' --' ) )
+			settings.AutoRingMode.Use = not settings.AutoRingMode.Use
+			windower.add_to_chat( 5 , windower.to_shift_jis( '-- 自動ペンギンリング='..tostring(settings.AutoRingMode.Use)..' --' ) )
         elseif comm == 'autofood' then
 			settings.AutoFoodMode = not settings.AutoFoodMode
 			windower.add_to_chat( 5 , windower.to_shift_jis( '-- 自動釣り人弁当食べるモード='..tostring(settings.AutoFoodMode)..' --' ) )
@@ -656,6 +699,9 @@ windower.register_event('addon command', function(...)
 			local count				= args[2] and args[2] or settings.NoCatchCount
 			settings.NoCatchCount	= count
 			windower.add_to_chat( 5 , windower.to_shift_jis( '-- '..settings.NoCatchCount..' 回連続で釣れなかったら釣りを止めます --' ) )
+        elseif comm == 'cap' then
+			settings.StopBySkillCap	= args[2] and tonumber(args[2]) or settings.StopBySkillCap
+			windower.add_to_chat( 5 , windower.to_shift_jis( '-- スキルキャップ制限='..settings.StopBySkillCap..' --' ) )
         elseif comm == 'r' then
 			settings = config.load(defaults)
         elseif comm == 'reset' then

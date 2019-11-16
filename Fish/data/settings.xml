@@ -10,6 +10,10 @@
             <DoRetry>true</DoRetry>
             <RetryMax>2</RetryMax>
         </AutoRetryCast>
+        <AutoRingMode>
+            <Ring>ペリカンリング</Ring>
+            <Use>true</Use>
+        </AutoRingMode>
         <CastWait>10</CastWait>
         <Fish>
             <101>
@@ -72,6 +76,7 @@
                 <24903689>ブラインフィッシュ</24903689>
                 <36700173>アーマードピスケス</36700173>
                 <60293123>バグベアマスク</60293123>
+                <62914563>Monster</62914563>
                 <66846723>錆びた鎚鉾</66846723>
                 <81264643>錆びた大剣</81264643>
             </11>
@@ -103,6 +108,9 @@
                 <23592975>Monster</23592975>
                 <26214415>Monster</26214415>
             </113>
+            <115>
+                <30146572>ブレードフィッシュ</30146572>
+            </115>
             <116>
                 <17039372>キュス</17039372>
                 <20971535>Monster</20971535>
@@ -311,6 +319,12 @@
             <46>
                 <23592969>イエローグローブ</23592969>
             </46>
+            <48>
+                <26214403>錆びたバケツ</26214403>
+                <31457283>錆びたサブリガ</31457283>
+                <36700163>錆びたレギンス</36700163>
+                <43253769>カヤバルウ</43253769>
+            </48>
         </Fish>
         <Gear>
             <13>ノディリング</13>
@@ -324,7 +338,7 @@
             <9>フィッシャトルク</9>
             <AutoRepair>false</AutoRepair>
         </Gear>
-        <NoCatchCount>10</NoCatchCount>
+        <NoCatchCount>20</NoCatchCount>
         <Release>
             <101>
                 <20971535>Monster</20971535>
@@ -449,6 +463,7 @@
             <126>
                 <20971535>Monster</20971535>
                 <22282255>Monster</22282255>
+                <23592969>イエローグローブ</23592969>
                 <23592975>Monster</23592975>
                 <26214403>錆びたバケツ</26214403>
                 <26214415>Monster</26214415>
@@ -553,10 +568,16 @@
             <249>
                 <36700163>Monster</36700163>
             </249>
+            <48>
+                <26214403>Monster</26214403>
+                <31457283>Monster</31457283>
+                <36700163>Monster</36700163>
+            </48>
         </Release>
+        <StopBySkillCap>100</StopBySkillCap>
         <texts>
             <bg>
-                <alpha>255</alpha>
+                <alpha>128</alpha>
                 <blue>0</blue>
                 <green>0</green>
                 <red>0</red>
@@ -571,8 +592,8 @@
             </flags>
             <padding>0</padding>
             <pos>
-                <x>0</x>
-                <y>0</y>
+                <x>401</x>
+                <y>51</y>
             </pos>
             <text>
                 <alpha>255</alpha>
@@ -583,7 +604,7 @@
                 </fonts>
                 <green>255</green>
                 <red>255</red>
-                <size>12</size>
+                <size>10</size>
                 <stroke>
                     <alpha>255</alpha>
                     <blue>0</blue>
@@ -594,4 +615,12 @@
             </text>
         </texts>
     </global>
+    <aelyne>
+        <texts>
+            <pos>
+                <x>1025</x>
+                <y>70</y>
+            </pos>
+        </texts>
+    </aelyne>
 </settings>
