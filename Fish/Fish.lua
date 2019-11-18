@@ -30,7 +30,7 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 --	addon information
 ------------------------------
 _addon.name = 'Fish'
-_addon.version = '0.5.2'
+_addon.version = '0.6.0'
 _addon.author = 'Hazel'
 _addon.command = 'fish'
 
@@ -83,7 +83,7 @@ function Queue:enqueue(x)
 end
 
 function Queue:dequeue()
-  return table.remove(self.buff, 1)
+	return table.remove(self.buff, 1)
 end
 
 function Queue:top()
@@ -370,6 +370,7 @@ RustyItems = T{
 	"ミスリルダガー",
 	"ノーグ貝",
 	"濡れた巻物",
+	"破れた帽子",
 	"バグベアマスク",
 	"モブリンマスク",
 	"珊瑚のかけら",
@@ -522,47 +523,59 @@ update_text_box()
 ------------------------------
 windower.register_event('incoming text',function( original, modified, original_mode, modified_mode, blocked )
 	local msg = windower.from_shift_jis( original )
-	if msg:find( "何も釣れなかった" ) then
-		--	何も釣れなかったで釣り停止
-		debug_print( 'incoming text / NoCatchCount/MAX='..NoCatchCount.."/"..settings.NoCatchCount )
-		if NoCatchCount < tonumber( settings.NoCatchCount ) then
-			NoCatchCount	= NoCatchCount + 1;
-		end
-		CastRetry	= 0
-	elseif msg:find( "モンスターを釣り上げた" ) then
-		--	リリース対象に追加
-		local	zoneId	= tostring( windower.ffxi.get_info().zone )
-		local	fishId	= tostring( Fish_ID )
-		if not settings.Release[ zoneId ] then
-			settings.Release[ zoneId ] = {}
-		end
-		if not settings.Release[ zoneId ][ fishId ] then
-			settings.Release[ zoneId ][ fishId ] = "Monster"
-			settings:save('all')
-		end
-		Fish_ID	= 0			--	釣果をモンスターで確定
-							--	'add item'で倒したモンスターのドロップが釣果として登録されるのを防ぐ
-	elseif msg:find("ここで釣りはできません" ) then
-		if settings.AutoRetryCast.DoRetry then 
-			if CastRetry < settings.AutoRetryCast.RetryMax then
-				cast_rod()
-				CastRetry	= CastRetry + 1
+	if ( fish_continue and ( NoCatchCount < tonumber( settings.NoCatchCount ) ) ) then
+		if msg:find( "何も釣れなかった" ) then
+			--	何も釣れなかったで釣り停止
+			debug_print( 'incoming text / NoCatchCount/MAX='..NoCatchCount.."/"..settings.NoCatchCount )
+			if NoCatchCount < tonumber( settings.NoCatchCount ) then
+				NoCatchCount	= NoCatchCount + 1;
 			end
+			coroutine.sleep( settings.CastWait )
+			cast_rod()
+		elseif msg:find( "モンスターを釣り上げた" ) then
+			--	リリース対象に追加
+			local	zoneId	= tostring( windower.ffxi.get_info().zone )
+			local	fishId	= tostring( Fish_ID )
+			if not settings.Release[ zoneId ] then
+				settings.Release[ zoneId ] = {}
+			end
+			if not settings.Release[ zoneId ][ fishId ] then
+				settings.Release[ zoneId ][ fishId ] = "Monster"
+				settings:save('all')
+			end
+			Fish_ID	= 0			--	釣果をモンスターで確定
+								--	'add item'で倒したモンスターのドロップが釣果として登録されるのを防ぐ
+		elseif msg:find("ここで釣りはできません" ) then
+			if settings.AutoRetryCast.DoRetry then 
+				if CastRetry < settings.AutoRetryCast.RetryMax then
+					cast_rod()
+					CastRetry	= CastRetry + 1
+				end
+			end
+		elseif msg:find("釣り糸が切れてしまった" )
+				or msg:find("獲物に逃げられてしまった" )
+				or msg:find("あきらめて仕掛けをたぐり寄せた" ) then
+			coroutine.sleep( settings.CastWait )
+			cast_rod()
+			Fish_ID	= 0
+		elseif windower.wc_match( msg, "まもなく*へ到着します" ) then
+			print('incoming text()-1^4')
+			--	機船航路 到着直前なら竿の修理などをやらない(未実装)
+			ship_state = 2	--	船の上＆まもなく到着
+		
+			text_box.PortEntry = "入港間近"
 		end
-	elseif windower.wc_match( msg, "釣り糸が切れてしまった" ) or windower.wc_match( msg, "獲物に逃げられてしまった" ) then
-		Fish_ID	= 0
-	elseif windower.wc_match( msg, "まもなく*へ到着します" ) then
-		--	機船航路 到着直前なら竿の修理などをやらない(未実装)
-		ship_state = 2	--	船の上＆まもなく到着
-	
-		text_box.PortEntry = "入港間近"
+		--	次の釣り
+		CastRetry	= 0
 	end
+
 	update_text_box()
 end)
 
 windower.register_event('incoming chunk',function(id, data)
 	local	packet = packets.parse('incoming', data)
 	-------------- Fishing ---------------
+	if id == 0x036 then
 	-- 何かが掛かったときのパケット
 	--[[
 	fields.incoming[0x115] = L{
@@ -576,7 +589,7 @@ windower.register_event('incoming chunk',function(id, data)
 	    {ctype='unsigned int',      label='Catch Key'},                             -- 14   This value is used in the catch key of the 0x110 packet when catching a fish
 	}
 	]]
-	if id == 0x115 then
+	elseif id == 0x115 then
 		
 		local	biteId	= tostring( packet['Fish Bite ID'])		--	掛かったもののID
 		local	zoneId	= tostring( windower.ffxi.get_info().zone )		--	キーとしては文字列
@@ -651,39 +664,6 @@ end)
 
 windower.register_event('outgoing chunk', function(id, data)
 	local packet = packets.parse('outgoing', data)
-	-- Fishing Action
-	--[[
-	fields.outgoing[0x110] = L{
-	    {ctype='unsigned int',      label='Player',             fn=id},             -- 04
-	    {ctype='unsigned int',      label='Fish HP'},                               -- 08   Always 200 when releasing, zero when casting and putting away rod
-	    {ctype='unsigned short',    label='Player Index',       fn=index},          -- 0C
-	    {ctype='unsigned char',     label='Action',             fn=e+{'fishing'}},  -- 0E
-	    {ctype='unsigned char',     label='_unknown1'},                             -- 0F   Always zero (pre-March fishing update this value would increase over time, probably zone fatigue)
-	    {ctype='unsigned int',      label='Catch Key'},                             -- 10   When catching this matches the catch key from the 0x115 packet, otherwise zero
-	}
-	]]
-	if id == 0x110 then
-		debug_print( '-- outgoing chunk --')
-		debug_print( '  packet[Player] '..packet['Player'] )
-		debug_print( '  packet[Fish HP] '..packet['Fish HP'] )
-		debug_print( '  packet[Player Index] '..packet['Player Index'] )
-		debug_print( '  packet[Action] '..packet['Action'] )
-		debug_print( '  packet[_unknown1] '..packet['_unknown1'] )
-		debug_print( '  packet[Catch Key] '..packet['Catch Key'] )
-		debug_print( '-------------------')
-
-		if T{2, 3}:contains( packet['Action'] ) then
-			if ( fish_continue and ( NoCatchCount < tonumber( settings.NoCatchCount ) ) ) then
-				debug_print( 'fish_continue '..( fish_continue and 'true' or 'false' ) )
-				debug_print('next /fish start')
-				--	次の釣り
-				coroutine.sleep( settings.CastWait )
-				cast_rod()
-			else
-				log( ( "動作を中断します" ) )
-			end
-		end
-		CastRetry	= 0
 	end
 end)
 
@@ -706,8 +686,8 @@ windower.register_event('addon command', function(...)
         elseif comm == 'start' then
 			fish_continue = true
 			NoCatchCount = 1
-			cast_rod()
 			log( '-- 釣りを開始します --' )
+			cast_rod()
         elseif comm == 'stop' then
 			fish_continue = false
 			log( '-- 釣りを止めます --' )
@@ -795,17 +775,20 @@ windower.register_event('add item', function( bag, index, id, count )
 			Fish_ID	= 0						--	釣った魚のIDをクリア
 			catch_count	= catch_count + 1	--	釣り上げた魚の数をインクリメント
 			update_text_box()				--	テキストボックスの表示を更新
-		end
-		--	かばんが一杯になったら釣り中止
-		local bag = windower.ffxi.get_items( 0 )	--	get inventry info
-		if bag.max == bag.count then
-			fish_continue = false
+
+			--	かばんが一杯になったら釣り中止
+			local bag = windower.ffxi.get_items( 0 )	--	get inventry info
+			if bag.max == bag.count then
+				fish_continue = false
+			else
+				coroutine.sleep( settings.CastWait )
+				cast_rod()
+			end
 		end
 	end
 end)
 
 windower.register_event('load', function()
---	coroutine.schedule( queue_execute, 0 )
 	check_ship_state()
 end)
 windower.register_event('unload', function()
