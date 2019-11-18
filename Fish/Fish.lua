@@ -41,6 +41,7 @@ packets = require('packets')
 chat = require('chat')
 res = require('resources')
 config = require('config')
+require('logger')
 
 
 --	共通関数群
@@ -73,12 +74,12 @@ end
 --	キュー
 Queue	= {}
 function Queue.new()
-  local obj = { buff = {} }
-  return setmetatable(obj, {__index = Queue})
+	local obj = { buff = {} }
+	return setmetatable(obj, {__index = Queue})
 end
 
 function Queue:enqueue(x)
-  table.insert(self.buff, x)
+	table.insert(self.buff, x)
 end
 
 function Queue:dequeue()
@@ -86,9 +87,9 @@ function Queue:dequeue()
 end
 
 function Queue:top()
-  if #self.buff > 0 then
-    return self.buff[1]
-  end
+	if #self.buff > 0 then
+		return self.buff[1]
+	end
 end
 
 function Queue:isEmpty()
@@ -117,12 +118,33 @@ end
 
 --	釣り装備
 function equip_fish_gear()
+--[[
 	local gear = settings.Gear
 	for slot=0, 15 do
 		if gear[ tostring(slot) ] then
 			equip( res.slots[ slot ].en, gear[ tostring(slot) ] )
 		end
 	end
+]]
+
+	coroutine.sleep( 1 )
+	if not settings.Gear['main'] then windower.send_command( ( 'input /equip main '..settings.Gear['main'] ) ) end
+	if not settings.Gear['sub'] then windower.send_command( ( 'input /equip sub '..settings.Gear['sub'] ) ) end
+	if not settings.Gear['range'] then windower.send_command( ( 'input /equip range '..settings.Gear['range'] ) ) end
+	if not settings.Gear['ammo'] then windower.send_command( ( 'input /equip ammo '..settings.Gear['ammo'] ) ) end
+	if not settings.Gear['head'] then windower.send_command( ( 'input /equip head '..settings.Gear['head'] ) ) end
+	if not settings.Gear['neck'] then windower.send_command( ( 'input /equip neck '..settings.Gear['neck'] ) ) end
+	if not settings.Gear['Lear'] then windower.send_command( ( 'input /equip L.ear '..settings.Gear['Lear'] ) ) end
+	if not settings.Gear['Rear'] then windower.send_command( ( 'input /equip R.ear '..settings.Gear['Rear'] ) ) end
+	if not settings.Gear['body'] then windower.send_command( ( 'input /equip body '..settings.Gear['body'] ) ) end
+	if not settings.Gear['hands'] then windower.send_command( ( 'input /equip hands '..settings.Gear['hands'] ) ) end
+	if not settings.Gear['Lring'] then windower.send_command( ( 'input /equip L.ring '..settings.Gear['Lring'] ) ) end
+	if not settings.Gear['Rring'] then windower.send_command( ( 'input /equip R.ring '..settings.Gear['Rring'] ) ) end
+	if not settings.Gear['back'] then windower.send_command( ( 'input /equip back '..settings.Gear['back'] ) ) end
+	if not settings.Gear['waist'] then windower.send_command( ( 'input /equip waist '..settings.Gear['waist'] ) ) end
+	if not settings.Gear['legs'] then windower.send_command( ( 'input /equip legs '..settings.Gear['legs'] ) ) end
+	if not settings.Gear['feet'] then windower.send_command( ( 'input /equip feet '..settings.Gear['feet'] ) ) end
+	coroutine.sleep( 1 )
 end
 --	釣り実行
 function cast_rod()
@@ -181,7 +203,7 @@ function check_skill_cap()
 	if( skill.fishing < settings.StopBySkillCap) then
 		return false
 	else
-		windower.add_to_chat( 8, windower.to_shift_jis( string.format( "スキルキャップ(%d/%d)", skill.fishing, settings.StopBySkillCap ) ) )
+		log( ( string.format( "スキルキャップ(%d/%d)", skill.fishing, settings.StopBySkillCap ) ) )
 		return true
 	end
 end
@@ -200,7 +222,7 @@ end
 --	リング使用
 function use_ring1()
 	if( settings.AutoRingMode and settings.AutoRingMode.Use and fish_continue and not check_ring_using() ) then
-		windower.send_command( windower.to_shift_jis( 'input /item '..settings.AutoRingMode.Ring..' <me>' ) )
+		windower.send_command( ( 'input /item '..settings.AutoRingMode.Ring..' <me>' ) )
 		coroutine.sleep( 4.0 )
 	end
 end
@@ -208,7 +230,7 @@ end
 function use_ring2()
 --[[
 	if( settings.AutoRingMode and fish_continue ) then
-		windower.send_command( windower.to_shift_jis( 'input /item '..settings.AutoRingMode.Ring..' <me>' ) )
+		windower.send_command( ( 'input /item '..settings.AutoRingMode.Ring..' <me>' ) )
 		coroutine.sleep( 4.0 )
 	end
 ]]
@@ -244,11 +266,11 @@ function eat_fisherman_boxlunch()
 		local is_alreadey_eat	= check_food_eat()
 		local is_food_in_bag	= check_food_in_bag()
 		if not is_food_in_bag then
-			windower.add_to_chat( 8, windower.to_shift_jis( "釣り人弁当がかばんに無い" ) )
+			log( ( "釣り人弁当がかばんに無いのよ..." ) )
 		end
 		local loop_continue	= ( not is_alreadey_eat ) and is_food_in_bag
 		while loop_continue do
-			windower.send_command( windower.to_shift_jis( 'input /item 釣り人弁当 <me>' ) )
+			windower.send_command( ( 'input /item 釣り人弁当 <me>' ) )
 			coroutine.sleep( 1.0 )
 			loop_continue	= ( not check_food_eat() ) and is_food_in_bag
 		end
@@ -258,7 +280,7 @@ end
 function use_sneak()
 	local loop_continue = true
 	while loop_continue do
-		windower.send_command( windower.to_shift_jis( 'input /ma スニーク <me>' ) )
+		windower.send_command( ( 'input /ma スニーク <me>' ) )
 		local player = windower.ffxi.get_player()
 		for _, buffId in pairs( player.buffs ) do
 			if buffId == res.buffs:with( 'ja', 'スニーク' ).id then
@@ -294,7 +316,7 @@ function update_text_box()
 	end
 	
 	--	入港間近
-	text_box.PortEntry	= ""
+--	text_box.PortEntry	= ""
 	
 	--	釣りスキル
 	local skill = windower.ffxi.get_player().skills
@@ -418,17 +440,23 @@ defaults.NoCatchCount	= 10		--	「何も釣れなかった」が連続したら�
 defaults.StopBySkillCap	= 110		--	指定したスキル値に到達したら釣りをやめる(昇級認定試験)
 
 defaults.Gear = {
-	["2"] = "太公望の釣竿",
-	["4"] = "トラトラマグラス",
-	["6"] = "カチナグローブ",
-	["5"] = "漁師スモック",
-	["7"] = "フィッシャホーズ",
-	["8"] = "ウエーダー",
-	["9"] = "フィッシャトルク",
-	["13"] = "ノディリング",
-	["14"] = "ペリカンリング",
---	["14"] = "パフィンリング",
-	
+	main = "",
+	sub = "",
+	range = "太公望の釣竿",
+	ammo = "",
+	head = "トラトラマグラス",
+	neck = "フィッシャトルク",
+	Lear = "",
+	Rear = "",
+	body = "漁師スモック",
+	hands = "カチナグローブ",
+	Lring = "ノディリング",
+	Rring = "ペリカンリング",
+	back = "",
+	waist = "",
+	legs = "フィッシャホーズ",
+	feet = "ウエーダー",
+
 	AutoRepair = false
 }
 
@@ -559,9 +587,9 @@ windower.register_event('incoming chunk',function(id, data)
 		local pullin_packet
 
 		if settings.Fish[ zoneId ] and settings.Fish[ zoneId ][ biteId ] then
-			windower.add_to_chat( 8, windower.to_shift_jis( settings.Fish[ zoneId ][ biteId ].."が掛かった" ) )
+			log( ( settings.Fish[ zoneId ][ biteId ].."が掛かった" ) )
 		else
-			windower.add_to_chat( 8, windower.to_shift_jis( "不明な魚( biteId = "..biteId..")が掛かった" ) )
+			log( ( "不明な魚( biteId = "..biteId..")が掛かった" ) )
 		end
 		--	釣ったものの登録
 		if not settings.Fish[ zoneId ] then
@@ -570,7 +598,7 @@ windower.register_event('incoming chunk',function(id, data)
 		if not settings.Fish[ zoneId ][ biteId ] then
 			settings.Fish[ zoneId ][ biteId ] = "Monster"		--	新規IDはモンスターとして仮決め
 			settings:save('all')
-			windower.add_to_chat( 8, windower.to_shift_jis( string.format( "不明な魚( biteId=%s / zoneId=%s )を登録", biteId, zoneId ) ) )
+			log( ( string.format( "不明な魚( biteId=%s / zoneId=%s )を登録", biteId, zoneId ) ) )
 		end
 	
 		if( settings.Release[ zoneId ] and settings.Release[ zoneId ][ biteId ] ) then
@@ -652,7 +680,7 @@ windower.register_event('outgoing chunk', function(id, data)
 				coroutine.sleep( settings.CastWait )
 				cast_rod()
 			else
-				windower.add_to_chat( 5, windower.to_shift_jis( "規定回数獲物が掛からなかったので動作を停止します" ) )
+				log( ( "動作を中断します" ) )
 			end
 		end
 		CastRetry	= 0
@@ -673,35 +701,38 @@ windower.register_event('addon command', function(...)
  6. fish r		--	設定ファイルの再読み込み(Release対象を追加後など)
 	]]
             for _, line in ipairs(helptext:split('\n')) do
-                windower.add_to_chat(207, line..chat.controls.reset)
+				log( line..chat.controls.reset)
             end
         elseif comm == 'start' then
 			fish_continue = true
 			NoCatchCount = 1
 			cast_rod()
-			windower.add_to_chat( 5 , windower.to_shift_jis( '-- 釣りを開始します --' ) )
+			log( '-- 釣りを開始します --' )
         elseif comm == 'stop' then
 			fish_continue = false
-			windower.add_to_chat( 5 , windower.to_shift_jis( '-- 釣りを止めます --' ) )
+			log( '-- 釣りを止めます --' )
         elseif comm == 'autoretry' then
 			settings.AutoRetryCast.DoRetry = not settings.AutoRetryCast.DoRetry
-			windower.add_to_chat( 5 , windower.to_shift_jis( '-- 釣り失敗を再実行='..tostring(settings.AutoRetryCast.DoRetry)..' --' ) )
+			log( '-- 釣り失敗時の再実行回数='..tostring(settings.AutoRetryCast.DoRetry) )
         elseif comm == 'autosneak' then
 			auto_sneak_mode = not auto_sneak_mode
-			windower.add_to_chat( 5 , windower.to_shift_jis( '-- 自動スニ='..tostring(auto_sneak_mode)..' --' ) )
-        elseif comm == 'autoring' then
+			log( ( '-- 自動スニ='..tostring(auto_sneak_mode)..' --' ) )
+        elseif comm == 'autoring' then	--	リングの自動使用モード
 			settings.AutoRingMode.Use = not settings.AutoRingMode.Use
-			windower.add_to_chat( 5 , windower.to_shift_jis( '-- 自動ペンギンリング='..tostring(settings.AutoRingMode.Use)..' --' ) )
-        elseif comm == 'autofood' then
+			log( 'autoring='..tostring(settings.AutoRingMode.Use) )
+        elseif comm == 'autofood' then	--	弁当を自動で食べるモード
 			settings.AutoFoodMode = not settings.AutoFoodMode
-			windower.add_to_chat( 5 , windower.to_shift_jis( '-- 自動釣り人弁当食べるモード='..tostring(settings.AutoFoodMode)..' --' ) )
+			log( 'autofood='..tostring(settings.AutoFoodMode) )
         elseif comm == 'autostop' then
 			local count				= args[2] and args[2] or settings.NoCatchCount
 			settings.NoCatchCount	= count
-			windower.add_to_chat( 5 , windower.to_shift_jis( '-- '..settings.NoCatchCount..' 回連続で釣れなかったら釣りを止めます --' ) )
-        elseif comm == 'cap' then
+			log( '停止回数='..settings.NoCatchCount )
+        elseif comm == 'cap' then		-- 指定のスキルに到達したら停止
 			settings.StopBySkillCap	= args[2] and tonumber(args[2]) or settings.StopBySkillCap
-			windower.add_to_chat( 5 , windower.to_shift_jis( '-- スキルキャップ制限='..settings.StopBySkillCap..' --' ) )
+			log( 'スキルキャップ制限='..settings.StopBySkillCap )
+		elseif comm == 'debug' then
+			catch_count				= args[2] and args[2] or 0
+			update_text_box()
         elseif comm == 'r' then
 			settings = config.load(defaults)
         elseif comm == 'reset' then
@@ -741,7 +772,7 @@ windower.register_event('add item', function( bag, index, id, count )
 	if res.bags:with( 'en', 'Inventory' ).id == bag then
 		--	魚を釣り上げた後
 		if Fish_ID ~= 0 then
-			windower.add_to_chat( 8 , windower.to_shift_jis( 'add item / item='..res.items[id].name..' Fish_ID='..Fish_ID ) )
+			log( ( '釣り上げた魚：'..res.items[id].name..' Fish_ID='..Fish_ID ) )
 			--	外道だったらリリース対象に追加
 			if RustyItems:contains( res.items[id].name ) then
 				--	リリース対象に追加
@@ -787,7 +818,7 @@ end)
 
 windower.register_event('gain buff', function(buff_id)
 	local buff_name = res.buffs:with( 'id', buff_id ).name
-	windower.add_to_chat( 8 , windower.to_shift_jis( 'gain buff：'..buff_name ) )
+	log( ( 'gain buff：'..buff_name ) )
 	if buff_name == "エンチャント" then
 		buff_enchant	= true
 	end
@@ -798,7 +829,7 @@ end)
 
 windower.register_event('lose buff', function(buff_id)
 	local buff_name = res.buffs:with( 'id', buff_id ).name
-	windower.add_to_chat( 8 , windower.to_shift_jis( string.format( 'lose buff：%s(%d)', buff_name, buff_id ) ) )
+	log( ( string.format( 'lose buff：%s(%d)', buff_name, buff_id ) ) )
 	if fish_continue and auto_ring_mode and ( buff_id == res.buffs:with( 'ja', 'エンチャント' ).id ) then
 		coroutine.schedule( use_penguin_ring, 0.5 )
 	end
