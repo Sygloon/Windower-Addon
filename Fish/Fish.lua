@@ -565,8 +565,6 @@ windower.register_event('incoming text',function( original, modified, original_m
 		
 			text_box.PortEntry = "入港間近"
 		end
-		--	次の釣り
-		CastRetry	= 0
 	end
 
 	update_text_box()
@@ -664,7 +662,6 @@ end)
 
 windower.register_event('outgoing chunk', function(id, data)
 	local packet = packets.parse('outgoing', data)
-	end
 end)
 
 windower.register_event('addon command', function(...)
@@ -686,6 +683,7 @@ windower.register_event('addon command', function(...)
         elseif comm == 'start' then
 			fish_continue = true
 			NoCatchCount = 1
+			CastRetry = 0
 			log( '-- 釣りを開始します --' )
 			cast_rod()
         elseif comm == 'stop' then
