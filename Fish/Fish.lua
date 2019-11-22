@@ -30,7 +30,7 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 --	addon information
 ------------------------------
 _addon.name = 'Fish'
-_addon.version = '0.6.0'
+_addon.version = '0.6.1'
 _addon.author = 'Hazel'
 _addon.command = 'fish'
 
@@ -100,52 +100,105 @@ end
 --	equip_part	'Main', 'Head', etc
 --	equipment	'太公望の釣竿', 'フィッシャトルク', etc
 function equip( equip_part, equipment )
-	for _, bag_id in pairs( T{ 0, 8, 10, 11, 12 } ) do
-		local items = windower.ffxi.get_items(bag_id)
-		for inv_index = 1, #items do
-			local	item = items[ inv_index ]
-			if tonumber( item.id ) ~= 0 then
-				if res.items[ item.id ].name then
-					if equipment == res.items[ item.id ].name then
-						windower.ffxi.set_equip( inv_index, res.slots:with( 'en', equip_part ).id, bag_id ) 
-						break
+	if not equip_part or not equipment then
+		return
+	end
+	if check_equiped( equip_part, equipment ) then
+--		log( equipment..' is equiped.')
+		return
+	end
+	if not have_equip( equipment ) then
+--		log( 'not have a '..equipment)
+		return
+	end
+	if equip_part == 'Lring' then
+		equip_part = 'L.ring'
+	elseif equip_part == 'Rring' then
+		equip_part = 'R.ring'
+	end
+	log( '/equip '..equip_part..' '..equipment )
+	windower.send_command( windower.to_shift_jis( 'input /equip '..equip_part..' '..equipment ) )
+end
+
+--	装備可能なストレージにアイテムが存在するか
+function have_equip( equipment_name )
+	local info = windower.ffxi.get_items()
+	local bags = T{
+		'inventory',
+		'wardrobe',
+		'wardrobe2',
+		'wardrobe3',
+		'wardrobe4',
+	}
+	for _, bag in pairs( bags ) do
+--		log( 'bag='..bag)
+		if info[ bag ].enabled then
+			for slot = 1, 80 do
+				local item = info[ bag ][ slot ]
+--				dump( item, " " )
+				if item.id ~= 0 then
+--					log( 'type( item.id )='..type( item.id ))
+					if res.items[ item.id ].name == equipment_name then
+						return true
 					end
 				end
 			end
 		end
 	end
+	return false
 end
+
+--	装備しているかチェック
+function check_equiped( equip_slot, equipment_name )
+	local	isEquip = false
+	local info = windower.ffxi.get_items()
+
+	--	slot名変換
+	if equip_slot == 'Rring' then
+		equip_slot = 'right_ring'
+	elseif equip_slot == 'Lring' then
+		equip_slot = 'left_ring'
+	end
+	if info and info.equipment and info.equipment[ equip_slot ] then
+--		dump( info.equipment, " " )
+		local bag_name = res.bags[ info.equipment[ equip_slot..'_bag' ] ].en:lower()
+		--	ワードローブ名変換
+		if bag_name == 'wardrobe 2' then
+			bag_name = 'wardrobe2'
+		elseif bag_name == 'wardrobe 3' then
+			bag_name = 'wardrobe3'
+		elseif bag_name == 'wardrobe 4' then
+			bag_name = 'wardrobe4'
+		end
+
+--		log('bag_name='..bag_name)
+--		log('equip_slot='..equip_slot)
+--		log('info.equipment['..equip_slot..']='..info.equipment[ equip_slot ])
+--		dump( info[ bag_name ][ tonumber( info.equipment[ equip_slot ] ) ], " " )
+
+		if info.equipment[ equip_slot ] > 0 then
+			if info[ bag_name ][ tonumber( info.equipment[ equip_slot ] ) ].status == 5 then
+				isEquip = true
+			end
+		end
+	end
+	return isEquip;
+end
+
 
 --	釣り装備
 function equip_fish_gear()
---[[
 	local gear = settings.Gear
-	for slot=0, 15 do
-		if gear[ tostring(slot) ] then
-			equip( res.slots[ slot ].en, gear[ tostring(slot) ] )
+	for slot, partsName in pairs( gear ) do
+		if partsName then
+--			log( 'slot='..slot..' partsName='..partsName )
+			if partsName and partsName:length() > 0 then
+				equip( slot, partsName )
+			end
 		end
 	end
-]]
-
-	coroutine.sleep( 1 )
-	if not settings.Gear['main'] then windower.send_command( ( 'input /equip main '..settings.Gear['main'] ) ) end
-	if not settings.Gear['sub'] then windower.send_command( ( 'input /equip sub '..settings.Gear['sub'] ) ) end
-	if not settings.Gear['range'] then windower.send_command( ( 'input /equip range '..settings.Gear['range'] ) ) end
-	if not settings.Gear['ammo'] then windower.send_command( ( 'input /equip ammo '..settings.Gear['ammo'] ) ) end
-	if not settings.Gear['head'] then windower.send_command( ( 'input /equip head '..settings.Gear['head'] ) ) end
-	if not settings.Gear['neck'] then windower.send_command( ( 'input /equip neck '..settings.Gear['neck'] ) ) end
-	if not settings.Gear['Lear'] then windower.send_command( ( 'input /equip L.ear '..settings.Gear['Lear'] ) ) end
-	if not settings.Gear['Rear'] then windower.send_command( ( 'input /equip R.ear '..settings.Gear['Rear'] ) ) end
-	if not settings.Gear['body'] then windower.send_command( ( 'input /equip body '..settings.Gear['body'] ) ) end
-	if not settings.Gear['hands'] then windower.send_command( ( 'input /equip hands '..settings.Gear['hands'] ) ) end
-	if not settings.Gear['Lring'] then windower.send_command( ( 'input /equip L.ring '..settings.Gear['Lring'] ) ) end
-	if not settings.Gear['Rring'] then windower.send_command( ( 'input /equip R.ring '..settings.Gear['Rring'] ) ) end
-	if not settings.Gear['back'] then windower.send_command( ( 'input /equip back '..settings.Gear['back'] ) ) end
-	if not settings.Gear['waist'] then windower.send_command( ( 'input /equip waist '..settings.Gear['waist'] ) ) end
-	if not settings.Gear['legs'] then windower.send_command( ( 'input /equip legs '..settings.Gear['legs'] ) ) end
-	if not settings.Gear['feet'] then windower.send_command( ( 'input /equip feet '..settings.Gear['feet'] ) ) end
-	coroutine.sleep( 1 )
 end
+
 --	釣り実行
 function cast_rod()
 	if check_skill_cap() then		--	スキルキャップしているので実行しない
@@ -154,6 +207,7 @@ function cast_rod()
 	eat_fisherman_boxlunch()
 	use_ring1()
 	equip_fish_gear()
+	coroutine.sleep(1)
 	windower.send_command('input /fish')
 end
 
@@ -545,8 +599,11 @@ windower.register_event('incoming text',function( original, modified, original_m
 			end
 			Fish_ID	= 0			--	釣果をモンスターで確定
 								--	'add item'で倒したモンスターのドロップが釣果として登録されるのを防ぐ
+		elseif msg:find("釣り竿が折れてしまった" ) then
+			repair_rod()
+			Fish_ID	= 0			--	釣果をモンスターで確定
 		elseif msg:find("ここで釣りはできません" ) then
-			if settings.AutoRetryCast.DoRetry then 
+				if settings.AutoRetryCast.DoRetry then 
 				if CastRetry < settings.AutoRetryCast.RetryMax then
 					cast_rod()
 					CastRetry	= CastRetry + 1
@@ -828,4 +885,3 @@ windower.register_event('zone change',function ( new_zoneId, old_zoneId )
 	text_box.PortEntry = ""
 	update_text_box()
 end)
-
