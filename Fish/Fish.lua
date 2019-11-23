@@ -30,7 +30,7 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 --	addon information
 ------------------------------
 _addon.name = 'Fish'
-_addon.version = '0.6.1'
+_addon.version = '0.6.2'
 _addon.author = 'Hazel'
 _addon.command = 'fish'
 
@@ -355,6 +355,49 @@ function check_ship_state()
 	end
 end
 
+--	ハラキリ
+coroutine_id	= nil
+function harakiri_routine( fish_name, target_npc )
+	log( 'ハラキリ開始' )
+	if not fish_name or not target_npc then
+		coroutine_id = nil	--	スレッド終了
+		return
+	end
+	local storages	= windower.ffxi.get_items()
+	local bag		= storages.inventory
+
+	for index = 1, bag.max do
+		if bag[index].id ~= 0 then
+			if res.items[ bag[index].id ].name == windower.from_shift_jis( fish_name ) then
+				log( windower.from_shift_jis( 'trade '..fish_name..' to Zaldon' ) )
+				windower.send_command( ( 'trade '..fish_name..' Zaldon' ) )
+				coroutine.sleep( 10 )
+				windower.send_command( 'setkey enter down;wait 0.1;setkey enter up;' )
+				coroutine.sleep( 2 )
+			end
+		end
+	end
+	log( 'ハラキリ終了' )
+	coroutine_id = nil	--	スレッド終了
+end
+function do_harakiri( fish_name )
+	target_npc		= windower.ffxi.get_mob_by_name('Zaldon')
+	if not target_npc then
+		error( 'Zaldon の近くでコマンドを実行してください')
+		return
+	end
+	harakiri_routine( windower.convert_auto_trans( fish_name ), target_npc )
+	coroutine_id = nil
+end
+windower.register_event('keyboard', function (dik, flags , blocked)
+	if coroutine_id ~= nil and dik == DIK_ESCAPE then
+		-- Escキーで停止させる
+		coroutine.close(coroutine_id)
+		coroutine_id = nil
+		log( 'ハラキリを中止します' )
+	end
+end)
+	
 --	テキストボックス更新
 function update_text_box()
 
@@ -770,6 +813,8 @@ windower.register_event('addon command', function(...)
 			update_text_box()
         elseif comm == 'r' then
 			settings = config.load(defaults)
+        elseif comm == 'z' then
+			coroutine_id = coroutine.schedule( do_harakiri:prepare( args[2] ), 0 )
         elseif comm == 'reset' then
 --			settings.Fatigue.Count = 0
         elseif comm == 'release' then
@@ -834,6 +879,7 @@ windower.register_event('add item', function( bag, index, id, count )
 			--	かばんが一杯になったら釣り中止
 			local bag = windower.ffxi.get_items( 0 )	--	get inventry info
 			if bag.max == bag.count then
+				log( 'かばんが一杯です' )
 				fish_continue = false
 			else
 				coroutine.sleep( settings.CastWait )
@@ -884,4 +930,5 @@ windower.register_event('zone change',function ( new_zoneId, old_zoneId )
 
 	text_box.PortEntry = ""
 	update_text_box()
+	Fish_ID	= 0		--	エリアで釣りが中断したとき
 end)
