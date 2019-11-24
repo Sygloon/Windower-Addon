@@ -1,0 +1,39 @@
+# オリジナルのTreasuryを改変したもの<br>
+https://ux.getuploader.com/WindowerUploader/に上げたものはsettings.xmlがSJISであることを前提になっていますが、こっちのバージョンはUTF8で使用してください。
+
+
+# 使い方
+・全部パス<br>
+	//trjp passall
+	
+・全部ロット<br>
+	//trjp lotall
+	
+・かばんの中身まで捨てる<br>
+	//trjp autodrop on
+	
+・全部パス<br>
+	//trjp passall
+	
+・ロット・パスリストのクリア<br>
+	//trjp clearall
+	
+・ロットしたいアイテムの登録<br>
+	//trjp lot add 獣人印章
+	
+・ロットしたいアイテムの削除<br>
+	//trjp lot remove 獣人印章
+	
+・パスしたいアイテムの登録<br>
+	//trjp pass add 獣人印章
+	
+・パスしたいアイテムの削除<br>
+	//trjp pass remove 獣人印章
+	
+・ロットするアイテムの一覧<br>
+	//trjp lot list
+	
+・パスするアイテムの一覧<br>
+	//trjp pass list
+
+ヘルプは日本語化していません。面倒くさいので気が向いたら･･････。
