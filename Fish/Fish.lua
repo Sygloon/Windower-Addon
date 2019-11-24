@@ -149,6 +149,8 @@ function have_equip( equipment_name )
 end
 
 --	装備しているかチェック
+--	true	装備している(装備変更の必要なし)
+--	false	装備していない
 function check_equiped( equip_slot, equipment_name )
 	local	isEquip = false
 	local info = windower.ffxi.get_items()
@@ -160,25 +162,18 @@ function check_equiped( equip_slot, equipment_name )
 		equip_slot = 'left_ring'
 	end
 	if info and info.equipment and info.equipment[ equip_slot ] then
---		dump( info.equipment, " " )
-		local bag_name = res.bags[ info.equipment[ equip_slot..'_bag' ] ].en:lower()
-		--	ワードローブ名変換
-		if bag_name == 'wardrobe 2' then
-			bag_name = 'wardrobe2'
-		elseif bag_name == 'wardrobe 3' then
-			bag_name = 'wardrobe3'
-		elseif bag_name == 'wardrobe 4' then
-			bag_name = 'wardrobe4'
-		end
+		local	index	= tonumber( info.equipment[ equip_slot ] )
+		local	bag_id	= tonumber( info.equipment[ equip_slot..'_bag' ] )
+		local	strage_info = windower.ffxi.get_items( bag_id, index )
 
---		log('bag_name='..bag_name)
---		log('equip_slot='..equip_slot)
---		log('info.equipment['..equip_slot..']='..info.equipment[ equip_slot ])
---		dump( info[ bag_name ][ tonumber( info.equipment[ equip_slot ] ) ], " " )
-
-		if info.equipment[ equip_slot ] > 0 then
-			if info[ bag_name ][ tonumber( info.equipment[ equip_slot ] ) ].status == 5 then
+		if info.equipment[ equip_slot ] and info.equipment[ equip_slot ] > 0 then	--	何某かを装備している
+			--	目的の装備品を装備しているか？
+			local	current_equip_name = res.items[ strage_info.id ].name
+			if current_equip_name == equipment_name then
 				isEquip = true
+			else
+--				log( 'current_equip_name='..current_equip_name )
+--				log( 'equipment_name='..equipment_name )
 			end
 		end
 	end
